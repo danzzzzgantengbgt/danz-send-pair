@@ -1,12 +1,19 @@
-// server.js
 import express from 'express'
 import bodyParser from 'body-parser'
 import { default as makeWaSocket, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys'
 import pino from 'pino'
+import path from 'path'
 
 const app = express()
 app.use(bodyParser.json())
-app.use(express.static('public')) // biar bisa akses index.html
+
+// Serve folder public (frontend HTML)
+app.use(express.static('public'))
+
+// Route / untuk buka index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'))
+})
 
 // HARD LIMIT
 const MAX_COUNT = 100
@@ -15,7 +22,6 @@ const MIN_DELAY = 150
 let sock
 let runningJob = null
 
-// Inisialisasi koneksi WhatsApp
 async function initWA() {
   const { state } = await useMultiFileAuthState('auth')
   const { version } = await fetchLatestBaileysVersion()
@@ -33,12 +39,8 @@ app.post('/start', async (req, res) => {
 
   const { number, count, delay, confirmOwner } = req.body
 
-  if (!confirmOwner) {
-    return res.status(400).json({ error: 'Harus konfirmasi nomor sendiri' })
-  }
-  if (!/^\d{10,14}$/.test(number)) {
-    return res.status(400).json({ error: 'Nomor tidak valid' })
-  }
+  if (!confirmOwner) return res.status(400).json({ error: 'Harus konfirmasi nomor sendiri' })
+  if (!/^\d{10,14}$/.test(number)) return res.status(400).json({ error: 'Nomor tidak valid' })
 
   const safeCount = Math.min(Number(count) || 1, MAX_COUNT)
   const safeDelay = Math.max(Number(delay) || MIN_DELAY, MIN_DELAY)
@@ -60,10 +62,7 @@ app.post('/start', async (req, res) => {
     runningJob = null
   })()
 
-  res.json({
-    status: 'started',
-    applied: { count: safeCount, delay: safeDelay }
-  })
+  res.json({ status: 'started', applied: { count: safeCount, delay: safeDelay } })
 })
 
 // STOP endpoint
@@ -76,7 +75,5 @@ app.post('/stop', (req, res) => {
   res.json({ status: 'idle' })
 })
 
-// Jalankan server
-app.listen(3000, () => {
-  console.log('Server jalan di http://localhost:3000')
-})
+// Railway menggunakan PORT dari environment variable
+app.listen(process.env.PORT || 3000, () => console.log('Server jalan'))
